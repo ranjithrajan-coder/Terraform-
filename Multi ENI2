@@ -1,0 +1,68 @@
+# Specify AWS provider
+provider "aws" {
+  region = "us-east-2" # Ohio region
+}
+
+# Define the data source for existing subnets in Ohio
+data "aws_subnet_ids" "ohio_subnets" {
+  vpc_id = "your_vpc_id"  # Replace with your VPC ID in Ohio
+}
+
+# Define the EC2 instances and ENIs
+resource "aws_instance" "ohio_instances" {
+  count         = 3
+  ami           = "ami-xxxxxxxxxxxxxxxxx"  # Specify your Windows AMI ID
+  instance_type = "t2.medium"  # Replace with your desired instance type
+
+  subnet_id     = data.aws_subnet_ids.ohio_subnets.ids[count.index % length(data.aws_subnet_ids.ohio_subnets.ids)]
+
+  # Optionally, you can configure other instance details like tags, key_name, etc.
+}
+
+# Define the AWS provider for North Virginia
+provider "aws" {
+  alias  = "virginia"
+  region = "us-east-1" # North Virginia region
+}
+
+# Define the data source for existing subnets in North Virginia
+data "aws_subnet_ids" "virginia_subnets" {
+  vpc_id = "your_vpc_id"  # Replace with your VPC ID in North Virginia
+  provider = aws.virginia
+}
+
+# Define the EC2 instances and ENIs in North Virginia
+resource "aws_instance" "virginia_instances" {
+  provider      = aws.virginia
+  count         = 2
+  ami           = "ami-xxxxxxxxxxxxxxxxx"  # Specify your Windows AMI ID
+  instance_type = "t2.medium"  # Replace with your desired instance type
+
+  subnet_id     = data.aws_subnet_ids.virginia_subnets.ids[count.index % length(data.aws_subnet_ids.virginia_subnets.ids)]
+
+  # Optionally, you can configure other instance details like tags, key_name, etc.
+}
+
+# Create multiple ENIs with consecutive IP addresses for each instance
+resource "aws_network_interface" "ohio_enis" {
+  count         = length(aws_instance.ohio_instances)
+
+  subnet_id     = aws_instance.ohio_instances[count.index % length(aws_instance.ohio_instances)].subnet_id
+
+  # Specify the number of private IPs and their allocation type
+  private_ips   = slice(data.aws_subnet_ids.ohio_subnets.*.cidr_block, count.index, 15)
+
+  # Optionally, you can configure other ENI details like tags, security_groups, etc.
+}
+
+resource "aws_network_interface" "virginia_enis" {
+  count         = length(aws_instance.virginia_instances)
+
+  subnet_id     = aws_instance.virginia_instances[count.index % length(aws_instance.virginia_instances)].subnet_id
+
+  # Specify the number of private IPs and their allocation type
+  private_ips   = slice(data.aws_subnet_ids.virginia_subnets.*.cidr_block, count.index, 15)
+
+  # Optionally, you can configure other ENI details like tags, security_groups, etc.
+}
+s
